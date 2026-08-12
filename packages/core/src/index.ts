@@ -7,6 +7,15 @@ export {
   type Extraction,
 } from './extraction.js';
 export {
+  AUTO_LINK_THRESHOLD,
+  bestMatch,
+  normaliseCoffeeName,
+  rankCandidates,
+  type CoffeeCandidate,
+  type CoffeeIdentity,
+  type CoffeeMatch,
+} from './identity.js';
+export {
   mergeProvenanced,
   type ProvenancedField,
   type ProvenancedRecord,
