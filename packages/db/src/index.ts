@@ -6,6 +6,7 @@ export {
 } from './bag.js';
 export {
   createCapture,
+  listCaptures,
   type Capture,
   type CaptureStatus,
   type NewCapture,

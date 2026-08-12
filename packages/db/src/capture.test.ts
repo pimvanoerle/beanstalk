@@ -1,7 +1,7 @@
 import { PGlite } from '@electric-sql/pglite';
 import { beforeEach, describe, expect, test } from 'vitest';
 
-import { createCapture } from './capture.js';
+import { createCapture, listCaptures } from './capture.js';
 import { migrate } from './migrate.js';
 
 let db: PGlite;
@@ -59,5 +59,36 @@ describe('createCapture', () => {
     });
 
     expect(b.id).not.toBe(a.id);
+  });
+});
+
+describe('listCaptures', () => {
+  test('returns only the given user\'s captures, newest first', async () => {
+    await createCapture(db, {
+      userId: 'user-1',
+      clientUuid: '33333333-3333-4333-8333-333333333333',
+      photoObject: 'first.jpg',
+    });
+    await createCapture(db, {
+      userId: 'user-2',
+      clientUuid: '44444444-4444-4444-8444-444444444444',
+      photoObject: 'someone-elses.jpg',
+    });
+    await createCapture(db, {
+      userId: 'user-1',
+      clientUuid: '55555555-5555-4555-8555-555555555555',
+      photoObject: 'second.jpg',
+    });
+
+    const captures = await listCaptures(db, 'user-1');
+
+    expect(captures.map((capture) => capture.photoObject)).toEqual([
+      'second.jpg',
+      'first.jpg',
+    ]);
+  });
+
+  test('returns nothing for a user with no captures', async () => {
+    expect(await listCaptures(db, 'nobody')).toEqual([]);
   });
 });

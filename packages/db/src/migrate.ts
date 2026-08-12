@@ -105,6 +105,16 @@ const MIGRATIONS: readonly { readonly id: string; readonly sql: string }[] = [
       create index bag_user_coffee_idx on bag (user_id, coffee_id);
     `,
   },
+  {
+    // Appended rather than folded into 003: the schema is live in Neon, so
+    // from here migrations are append-only. Editing an applied migration is
+    // invisible — the tracker already considers it done and it never re-runs.
+    id: '004_capture_listing_index',
+    sql: `
+      -- The inbox query: this user's captures, newest first.
+      create index capture_user_created_idx on capture (user_id, created_at desc);
+    `,
+  },
 ];
 
 /** Bring the database up to the latest schema. Safe to run repeatedly. */

@@ -1,0 +1,13 @@
+{
+  "name": "@beanstalk/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "HTTP API. Runs on Cloud Run; every route is scoped to a verified user.",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "dependencies": {
+    "@beanstalk/core": "*",
+    "@beanstalk/db": "*"
+  }
+}

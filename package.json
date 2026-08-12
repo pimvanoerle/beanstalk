@@ -15,6 +15,7 @@
   "scripts": {
     "typecheck": "tsc --build",
     "lint": "eslint .",
+    "pretest": "tsc --build",
     "test": "vitest run",
     "test:watch": "vitest",
     "migrate": "tsc --build && node --env-file-if-exists=.env packages/db/dist/cli/migrate.js"
@@ -30,6 +31,8 @@
     "vitest": "^4.1.10"
   },
   "dependencies": {
+    "@hono/node-server": "^2.1.0",
+    "hono": "^4.13.1",
     "pg": "^8.23.0"
   }
 }

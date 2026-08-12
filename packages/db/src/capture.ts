@@ -85,3 +85,26 @@ export async function createCapture(
   }
   return toCapture(existingRow);
 }
+
+/**
+ * A user's captures, newest first.
+ *
+ * Scoped by user_id in the query rather than filtered afterwards — the caller
+ * never sees another user's rows, so it cannot forget to.
+ *
+ * Ordered by created_at with id as the tie-break. Since ids are uuidv7 and so
+ * time-ordered, that stays correct for captures written in the same
+ * millisecond, which the retry path makes entirely possible.
+ */
+export async function listCaptures(
+  db: Database,
+  userId: string,
+): Promise<Capture[]> {
+  const { rows } = await db.query<CaptureRow>(
+    `select ${RETURNED_COLUMNS} from capture
+     where user_id = $1
+     order by created_at desc, id desc`,
+    [userId],
+  );
+  return rows.map(toCapture);
+}
