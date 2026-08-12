@@ -21,6 +21,37 @@ beforeEach(async () => {
  * hold even if a future repository, a migration script or a manual psql
  * session gets it wrong.
  */
+describe('primary keys', () => {
+  /** The version nibble is the first character of a UUID's third group. */
+  function uuidVersion(id: string): string {
+    return id.split('-')[2]?.[0] ?? '?';
+  }
+
+  test('are time-ordered uuidv7 values', async () => {
+    const { rows } = await db.query<{ id: string }>(
+      `insert into coffee (roaster_id, name) values ($1, 'x') returning id`,
+      [roasterId],
+    );
+
+    expect(uuidVersion(rows[0]!.id)).toBe('7');
+  });
+
+  test('sort in insertion order', async () => {
+    // What v7 buys over v4: index locality on insert, and `order by id`
+    // agreeing with `order by created_at` without a second column.
+    const ids: string[] = [];
+    for (const name of ['a', 'b', 'c']) {
+      const { rows } = await db.query<{ id: string }>(
+        `insert into coffee (roaster_id, name) values ($1, $2) returning id`,
+        [roasterId, name],
+      );
+      ids.push(rows[0]!.id);
+    }
+
+    expect([...ids].sort()).toEqual(ids);
+  });
+});
+
 describe('schema constraints', () => {
   test('rejects a rating outside one to five', async () => {
     const { rows } = await db.query<{ id: string }>(

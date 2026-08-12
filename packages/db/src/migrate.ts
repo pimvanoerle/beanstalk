@@ -12,7 +12,7 @@ const MIGRATIONS: readonly { readonly id: string; readonly sql: string }[] = [
     id: '001_roaster',
     sql: `
       create table roaster (
-        id         uuid primary key default gen_random_uuid(),
+        id         uuid primary key default uuidv7(),
         name       text not null,
         slug       text not null unique,
         city       text,
@@ -30,7 +30,7 @@ const MIGRATIONS: readonly { readonly id: string; readonly sql: string }[] = [
       );
 
       create table capture (
-        id           uuid primary key default gen_random_uuid(),
+        id           uuid primary key default uuidv7(),
         user_id      text not null,
         client_uuid  uuid not null,
         photo_object text not null,
@@ -50,7 +50,7 @@ const MIGRATIONS: readonly { readonly id: string; readonly sql: string }[] = [
     id: '003_coffee_and_bag',
     sql: `
       create table coffee (
-        id              uuid primary key default gen_random_uuid(),
+        id              uuid primary key default uuidv7(),
         roaster_id      uuid not null references roaster (id),
         name            text not null,
         origin_country  text,
@@ -81,7 +81,7 @@ const MIGRATIONS: readonly { readonly id: string; readonly sql: string }[] = [
       create index coffee_roaster_id_idx on coffee (roaster_id);
 
       create table bag (
-        id             uuid primary key default gen_random_uuid(),
+        id             uuid primary key default uuidv7(),
         user_id        text not null,
         coffee_id      uuid not null references coffee (id),
         size_g         integer,
