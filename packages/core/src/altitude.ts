@@ -6,8 +6,13 @@ export interface AltitudeRange {
 
 const METRES_PER_FOOT = 0.3048;
 
-/** Digits plus any thousands separators, so "5,200" is not read as 5. */
-const NUMBER_SOURCE = String.raw`\d[\d,]*`;
+/**
+ * Digits plus any thousands separators, so "5,200" is not read as 5.
+ *
+ * A separator only counts when followed by exactly three digits, which is what
+ * distinguishes the European "1.600" (one thousand six hundred) from a decimal.
+ */
+const NUMBER_SOURCE = String.raw`\d+(?:[.,]\d{3})*`;
 const NUMBER_PATTERN = new RegExp(NUMBER_SOURCE);
 
 /** Two numbers joined by a hyphen, dash or the word "to". */
@@ -17,7 +22,7 @@ const RANGE_PATTERN = new RegExp(
 );
 
 function parseNumber(text: string | undefined): number {
-  return Number((text ?? '').replaceAll(',', ''));
+  return Number((text ?? '').replaceAll(/[.,]/g, ''));
 }
 
 /**
@@ -28,7 +33,10 @@ function parseNumber(text: string | undefined): number {
  * wrong later.
  */
 export function normaliseAltitude(input: string): AltitudeRange {
-  const isFeet = /\bft\b/i.test(input);
+  // Anchored on a preceding digit rather than a word boundary: "5200ft" has no
+  // boundary between the 0 and the f, and anchoring on the unit alone would
+  // match any word ending in "ft".
+  const isFeet = /\d\s*(?:ft|feet)\b/i.test(input);
   const toMetres = (value: number): number =>
     isFeet ? Math.round(value * METRES_PER_FOOT) : value;
 
@@ -38,7 +46,11 @@ export function normaliseAltitude(input: string): AltitudeRange {
   const range = RANGE_PATTERN.exec(input);
   if (range !== null) {
     const [, low, high] = range;
-    return { minM: toMetres(parseNumber(low)), maxM: toMetres(parseNumber(high)) };
+    const a = toMetres(parseNumber(low));
+    const b = toMetres(parseNumber(high));
+    // Bags are occasionally printed high-to-low. Callers sort and filter on
+    // these, so minM <= maxM has to hold regardless of print order.
+    return { minM: Math.min(a, b), maxM: Math.max(a, b) };
   }
 
   const single = NUMBER_PATTERN.exec(input)?.[0];

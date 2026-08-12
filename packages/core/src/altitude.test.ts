@@ -16,6 +16,14 @@ describe('normaliseAltitude', () => {
     expect(normaliseAltitude('5,200 ft')).toEqual({ minM: 1585, maxM: 1585 });
   });
 
+  test('recognises feet with no space before the unit', () => {
+    expect(normaliseAltitude('5200ft')).toEqual({ minM: 1585, maxM: 1585 });
+  });
+
+  test('recognises feet spelled out', () => {
+    expect(normaliseAltitude('5200 feet')).toEqual({ minM: 1585, maxM: 1585 });
+  });
+
   test('reads a range', () => {
     expect(normaliseAltitude('1600-1900 masl')).toEqual({
       minM: 1600,
@@ -46,6 +54,10 @@ describe('normaliseAltitude', () => {
     });
   });
 
+  test('reads a period as a thousands separator', () => {
+    expect(normaliseAltitude('1.600 m')).toEqual({ minM: 1600, maxM: 1600 });
+  });
+
   test('accepts "to" as a range separator', () => {
     // 4500 ft = 1371.6 m, 5200 ft = 1584.96 m
     expect(normaliseAltitude('4,500 to 5,200 ft')).toEqual({
@@ -60,6 +72,29 @@ describe('normaliseAltitude', () => {
     expect(normaliseAltitude('Tolima 1750m')).toEqual({
       minM: 1750,
       maxM: 1750,
+    });
+  });
+
+  test('orders a reversed range so minM is never above maxM', () => {
+    expect(normaliseAltitude('1900-1600 masl')).toEqual({
+      minM: 1600,
+      maxM: 1900,
+    });
+  });
+
+  test('reads a range written with period separators', () => {
+    expect(normaliseAltitude('1.600-1.900 msnm')).toEqual({
+      minM: 1600,
+      maxM: 1900,
+    });
+  });
+
+  // "soft" ends in "ft". The unit match is anchored on a preceding digit so
+  // an ordinary word cannot silently convert the value to feet.
+  test('does not read "ft" inside a word as a unit', () => {
+    expect(normaliseAltitude('soft 1500m')).toEqual({
+      minM: 1500,
+      maxM: 1500,
     });
   });
 });
