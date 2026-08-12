@@ -18,11 +18,13 @@ jobs:
     name: typecheck · lint · test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      # Matches local development. @types/node is 26.x, so typechecking against
+      # anything older would be lying about which APIs are available.
+      - uses: actions/setup-node@v5
         with:
-          node-version: 24
+          node-version: 26
           cache: npm
 
       - run: npm ci
@@ -43,7 +45,7 @@ jobs:
       # Gitleaks scans history, so it needs the full clone.
       # This complements GitHub's own push protection, which is enabled on the
       # repo — the two catch overlapping but different things.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
 

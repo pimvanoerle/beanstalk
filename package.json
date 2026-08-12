@@ -6,7 +6,7 @@
   "description": "Track the coffee you buy, not the coffee you brew.",
   "license": "MIT",
   "engines": {
-    "node": ">=24"
+    "node": ">=26"
   },
   "workspaces": [
     "packages/*",
