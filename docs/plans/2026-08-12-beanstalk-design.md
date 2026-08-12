@@ -174,9 +174,16 @@ Highest test value, no infrastructure required:
 
 ### Phase 2 — Persistence
 
-Schema and migrations. Tests run against a **real Postgres** (a Neon branch per CI run, or
-Testcontainers locally) — not a mock, because the behaviour under test is the unique constraint
-and the transaction boundary. Proves a retried upload cannot create two bags.
+Schema and migrations. Tests run against a **real Postgres** via PGlite — Postgres compiled to
+WASM, running in-process. Not a mock, because the behaviour under test is the unique constraint
+and the transaction boundary; and no container, daemon or credentials, so CI needs nothing
+configured. Proves a retried upload cannot create two bags.
+
+> **Migrations run as a deploy step, never on application boot.** Boot-time migration creates a
+> race the moment Cloud Run starts two instances at once, and it means an unrelated restart can
+> silently apply a schema change nobody intended to ship yet. A deploy step has exactly one
+> runner, needs no advisory lock, and makes schema changes something you decide rather than
+> something that happens.
 
 ### Phase 3 — API
 

@@ -1,4 +1,10 @@
 export {
+  countPurchases,
+  createBag,
+  type Bag,
+  type NewBag,
+} from './bag.js';
+export {
   createCapture,
   type Capture,
   type CaptureStatus,

@@ -46,6 +46,65 @@ const MIGRATIONS: readonly { readonly id: string; readonly sql: string }[] = [
       );
     `,
   },
+  {
+    id: '003_coffee_and_bag',
+    sql: `
+      create table coffee (
+        id              uuid primary key default gen_random_uuid(),
+        roaster_id      uuid not null references roaster (id),
+        name            text not null,
+        origin_country  text,
+        region          text,
+        producer        text,
+        varietals       text[],
+        process         text,
+        altitude_min_m  integer,
+        altitude_max_m  integer,
+        roast_level     text,
+        harvest_year    integer,
+        tasting_notes   text[],
+
+        -- Per-field {source, confidence}. A user edit is permanent, so this is
+        -- what stops re-enrichment silently reverting a correction.
+        provenance      jsonb not null default '{}'::jsonb,
+        created_at      timestamptz not null default now(),
+
+        -- Mirrors the invariant normaliseAltitude already enforces. Belt and
+        -- braces: anything sorting or filtering on these assumes it holds.
+        constraint coffee_altitude_ordered check (
+          altitude_min_m is null
+          or altitude_max_m is null
+          or altitude_min_m <= altitude_max_m
+        )
+      );
+
+      create index coffee_roaster_id_idx on coffee (roaster_id);
+
+      create table bag (
+        id             uuid primary key default gen_random_uuid(),
+        user_id        text not null,
+        coffee_id      uuid not null references coffee (id),
+        size_g         integer,
+        price_cents    integer,
+        currency       text,
+        purchased_on   date,
+        purchased_at   text,
+        opened_on      date,
+        finished_on    date,
+        rating         smallint,
+        notes          text,
+        photo_object   text,
+        created_at     timestamptz not null default now(),
+
+        constraint bag_rating_range check (rating is null or rating between 1 and 5)
+      );
+
+      -- Every list view is "this user's bags, newest first", and counting
+      -- repeat purchases hits (user_id, coffee_id).
+      create index bag_user_created_idx on bag (user_id, created_at desc);
+      create index bag_user_coffee_idx on bag (user_id, coffee_id);
+    `,
+  },
 ];
 
 /** Bring the database up to the latest schema. Safe to run repeatedly. */
