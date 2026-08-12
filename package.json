@@ -1,0 +1,29 @@
+{
+  "name": "beanstalk",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Track the coffee you buy, not the coffee you brew.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=24"
+  },
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "typecheck": "tsc --build",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^26.2.0",
+    "eslint": "^10.8.1",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.67.0",
+    "vitest": "^4.1.10"
+  }
+}

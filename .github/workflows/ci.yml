@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Cancel superseded runs on the same ref.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: typecheck · lint · test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm run test
+
+  secrets:
+    name: secret scan
+    runs-on: ubuntu-latest
+    steps:
+      # Gitleaks scans history, so it needs the full clone.
+      # This complements GitHub's own push protection, which is enabled on the
+      # repo — the two catch overlapping but different things.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,16 @@
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+
+# Secrets — never commit. This repo is public.
+.env
+.env.*
+!.env.example
+*.pem
+*-service-account*.json
+gha-creds-*.json
+
+.DS_Store
+.vscode/
+.idea/

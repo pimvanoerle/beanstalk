@@ -149,9 +149,19 @@ individual test fail for the right reason, and one bug lights up the entire suit
 
 ### Phase 0 — Rails
 
-pnpm workspaces (`apps/web`, `apps/api`, `packages/core`), TypeScript, Vitest, ESLint, and a
-GitHub Actions pipeline running typecheck, lint, test, and secret scan. Lands with one real
-passing test so CI is proven from the first commit.
+**npm** workspaces, TypeScript, Vitest, ESLint, and a GitHub Actions pipeline running typecheck,
+lint, test, and secret scan. Lands with one real passing test so CI is proven from the first
+commit — not a tautological assertion, but the first genuine RED-GREEN slice of Phase 1.
+
+> npm rather than pnpm: Node 26 no longer bundles corepack, so pnpm would require a global
+> install on every dev machine and an extra CI step. npm workspaces are sufficient at this size.
+
+Workspace directories are created when their phase arrives, rather than sitting empty:
+`packages/core` now, `apps/api` at Phase 3, `apps/web` at Phase 5.
+
+Secret scanning is deliberately doubled up: **Gitleaks** in CI scans full history on every PR,
+and **GitHub push protection** (enabled on the repo) blocks known credential formats at push
+time. They overlap but do not subsume each other.
 
 ### Phase 1 — Domain core (`packages/core`, pure, zero I/O)
 
