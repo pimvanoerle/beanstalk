@@ -16,7 +16,8 @@
     "typecheck": "tsc --build",
     "lint": "eslint .",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "migrate": "tsc --build && node packages/db/dist/cli/migrate.js"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.4",
