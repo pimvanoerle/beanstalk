@@ -65,7 +65,22 @@ async function appliedIds(client: Client): Promise<string[]> {
 }
 
 function describe(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
+  if (!(error instanceof Error)) {
+    return String(error);
+  }
+
+  // Node raises an AggregateError when every resolved address fails — one
+  // entry per IPv4 and IPv6 candidate. Its own message is empty, so reporting
+  // only `error.message` produces "could not connect:" and nothing else, which
+  // is precisely when a deploy step most needs to say what went wrong.
+  if (error instanceof AggregateError) {
+    const causes = error.errors.map((inner: unknown) =>
+      inner instanceof Error ? inner.message : String(inner),
+    );
+    return causes.length === 0 ? error.name : causes.join('; ');
+  }
+
+  return error.message === '' ? error.name : error.message;
 }
 
 process.exitCode = await main();
