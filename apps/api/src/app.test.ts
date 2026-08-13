@@ -1,6 +1,6 @@
 import { PGlite } from '@electric-sql/pglite';
-import { migrate } from '@beanstalk/db';
-import { beforeEach, describe, expect, test } from 'vitest';
+import { migrate, TRUNCATE_ALL } from '@beanstalk/db';
+import { beforeAll, beforeEach, describe, expect, test } from 'vitest';
 
 import { createApp } from './app.js';
 import type { TokenVerifier } from './auth.js';
@@ -14,9 +14,13 @@ function asUser(uid: string): TokenVerifier {
 
 const AUTH = { Authorization: 'Bearer any' };
 
-beforeEach(async () => {
+beforeAll(async () => {
   db = new PGlite();
   await migrate(db);
+});
+
+beforeEach(async () => {
+  await db.exec(TRUNCATE_ALL);
 });
 
 function post(app: ReturnType<typeof createApp>, body: unknown) {
@@ -26,6 +30,57 @@ function post(app: ReturnType<typeof createApp>, body: unknown) {
     body: JSON.stringify(body),
   });
 }
+
+describe('health endpoints', () => {
+  test('liveness needs no token and does not touch the database', async () => {
+    // Deliberately no query: a liveness probe that depends on Postgres will
+    // report the process dead during a database blip and get it restarted,
+    // which helps nothing.
+    const exploding = {
+      query: () => {
+        throw new Error('database must not be touched');
+      },
+      exec: () => {
+        throw new Error('database must not be touched');
+      },
+    };
+    const app = createApp({ db: exploding, verifier: asUser('user-1') });
+
+    expect((await app.request('/healthz')).status).toBe(200);
+  });
+
+  test('readiness needs no token and reports the database reachable', async () => {
+    const app = createApp({ db, verifier: asUser('user-1') });
+
+    const response = await app.request('/readyz');
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ database: 'ok' });
+  });
+
+  test('readiness fails when the database is unreachable', async () => {
+    const broken = {
+      query: async () => {
+        throw new Error('ECONNREFUSED');
+      },
+      exec: async () => {
+        throw new Error('ECONNREFUSED');
+      },
+    };
+    const app = createApp({ db: broken, verifier: asUser('user-1') });
+
+    expect((await app.request('/readyz')).status).toBe(503);
+  });
+
+  test('every other route still requires a token', async () => {
+    // The allow-list is exactly the two health paths. Anything else, including
+    // a route nobody has written yet, is denied by default.
+    const app = createApp({ db, verifier: asUser('user-1') });
+
+    expect((await app.request('/captures')).status).toBe(401);
+    expect((await app.request('/healthz/../captures')).status).not.toBe(200);
+  });
+});
 
 describe('POST /captures', () => {
   test('registers a capture for the authenticated user', async () => {

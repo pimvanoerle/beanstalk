@@ -38,12 +38,39 @@ function parseCaptureRequest(body: unknown): CaptureRequest | null {
   return { clientUuid, photoObject };
 }
 
+/**
+ * The only unauthenticated paths. Everything else is denied by default, so a
+ * route added later is protected without anyone remembering to protect it.
+ */
+const PUBLIC_PATHS: ReadonlySet<string> = new Set(['/healthz', '/readyz']);
+
 export function createApp({ db, verifier }: AppDependencies) {
   const app = new Hono<{ Variables: { uid: string } }>();
 
-  // Applied to everything. A route that forgets to authenticate is a much
-  // worse failure than one that cannot be reached.
-  app.use('*', requireUser(verifier));
+  app.use('*', async (c, next) => {
+    if (PUBLIC_PATHS.has(c.req.path)) {
+      return next();
+    }
+    return requireUser(verifier)(c, next);
+  });
+
+  // Liveness. Answers "is this process running", nothing more. Deliberately
+  // does not query Postgres: a liveness probe that depends on the database
+  // turns a database blip into a restart loop.
+  app.get('/healthz', (c) => c.json({ status: 'ok' }));
+
+  // Readiness. Answers "can this instance actually serve traffic", which does
+  // require the database.
+  app.get('/readyz', async (c) => {
+    try {
+      await db.query('select 1');
+      return c.json({ status: 'ok', database: 'ok' });
+    } catch {
+      // Deliberately no error detail: this endpoint is unauthenticated, and
+      // driver messages leak hostnames.
+      return c.json({ status: 'degraded', database: 'unreachable' }, 503);
+    }
+  });
 
   app.post('/captures', async (c) => {
     const body: unknown = await c.req.json().catch(() => null);

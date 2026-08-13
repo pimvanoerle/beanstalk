@@ -1,15 +1,20 @@
 import { PGlite } from '@electric-sql/pglite';
-import { beforeEach, describe, expect, test } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, test } from 'vitest';
 
 import { countPurchases, createBag } from './bag.js';
 import { migrate } from './migrate.js';
+import { TRUNCATE_ALL } from './test-tables.js';
 
 let db: PGlite;
 let coffeeId: string;
 
-beforeEach(async () => {
+beforeAll(async () => {
   db = new PGlite();
   await migrate(db);
+});
+
+beforeEach(async () => {
+  await db.exec(TRUNCATE_ALL);
 
   const { rows } = await db.query<{ id: string }>(
     `with r as (

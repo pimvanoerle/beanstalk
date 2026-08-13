@@ -1,4 +1,4 @@
-import type { ClientBase } from 'pg';
+import type { ClientBase, Pool } from 'pg';
 
 import type { Database } from './database.js';
 
@@ -10,7 +10,7 @@ import type { Database } from './database.js';
  * A mock-based test of this function would only assert that it calls the thing
  * it obviously calls.
  */
-export function pgDatabase(client: ClientBase): Database {
+export function pgDatabase(client: ClientBase | Pool): Database {
   return {
     async query<Row>(sql: string, params?: unknown[]) {
       const result = await client.query(sql, params as unknown[] | undefined);

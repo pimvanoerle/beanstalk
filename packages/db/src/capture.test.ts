@@ -1,14 +1,21 @@
 import { PGlite } from '@electric-sql/pglite';
-import { beforeEach, describe, expect, test } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, test } from 'vitest';
 
 import { createCapture, listCaptures } from './capture.js';
 import { migrate } from './migrate.js';
+import { TRUNCATE_ALL } from './test-tables.js';
 
 let db: PGlite;
 
-beforeEach(async () => {
+// Booting PGlite costs ~1.5s; migrating costs ~35ms. Booting per test made the
+// suite slow enough to time out under load, so boot once and reset instead.
+beforeAll(async () => {
   db = new PGlite();
   await migrate(db);
+});
+
+beforeEach(async () => {
+  await db.exec(TRUNCATE_ALL);
 });
 
 describe('createCapture', () => {
