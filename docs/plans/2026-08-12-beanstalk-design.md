@@ -210,6 +210,28 @@ capture → review → shelf.
 
 Cloud Run and Firebase Hosting from CI.
 
+### Cloud Run gotchas, found by deploying early
+
+- **`/healthz` never reaches the container.** Google's frontend intercepts that
+  exact path and returns its own 404. Confirmed against a live revision: it is
+  absent from the request logs while every other path appears, and probing
+  showed it is specific to that one name — `/livez`, `/alive`, `/ping`,
+  `/_health` all pass through. Liveness is therefore `/livez`.
+- **Base images must come from `mirror.gcr.io`.** Both `docker.io` and
+  `public.ecr.aws` throttle by source IP, and Cloud Build shares egress
+  addresses across the region, so pulls fail intermittently with
+  `toomanyrequests`. `mirror.gcr.io` is Google's pull-through cache and is not
+  rate-limited from inside Cloud Build.
+- **The Dockerfile lives in `apps/api` but the build context is the repo root**,
+  since the image needs the workspace manifests and sibling packages. That
+  combination cannot be expressed with `gcloud builds submit --tag`, which
+  always runs `docker build .` against a root Dockerfile — hence
+  `cloudbuild.yaml`. Note `$PROJECT_ID` only expands in `steps` and `images`,
+  not inside another substitution's default.
+- **The service runs as a dedicated account** holding exactly one permission,
+  read access to one secret, rather than the default compute account and its
+  project-level roles.
+
 ## Open questions
 
 - Rating granularity — five stars, or half-stars?
