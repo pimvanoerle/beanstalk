@@ -1,5 +1,5 @@
 import { createCapture, listCaptures, type Database } from '@beanstalk/db';
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
 
 import { requireUser, type TokenVerifier } from './auth.js';
 
@@ -41,14 +41,24 @@ function parseCaptureRequest(body: unknown): CaptureRequest | null {
 /**
  * The only unauthenticated paths. Everything else is denied by default, so a
  * route added later is protected without anyone remembering to protect it.
+ *
+ * Liveness is /livez rather than the conventional /healthz because Google's
+ * frontend intercepts /healthz on Cloud Run and returns its own 404 — the
+ * request never reaches the container. Verified against a deployed revision:
+ * /healthz is absent from the request logs while every other path appears.
  */
-const PUBLIC_PATHS: ReadonlySet<string> = new Set(['/healthz', '/readyz']);
+const PUBLIC_PATHS: ReadonlySet<string> = new Set(['/livez', '/readyz']);
+
+/** Health checkers are not fussy about trailing slashes; a Set lookup is. */
+function normalisePath(path: string): string {
+  return path.length > 1 && path.endsWith('/') ? path.slice(0, -1) : path;
+}
 
 export function createApp({ db, verifier }: AppDependencies) {
   const app = new Hono<{ Variables: { uid: string } }>();
 
   app.use('*', async (c, next) => {
-    if (PUBLIC_PATHS.has(c.req.path)) {
+    if (PUBLIC_PATHS.has(normalisePath(c.req.path))) {
       return next();
     }
     return requireUser(verifier)(c, next);
@@ -57,11 +67,12 @@ export function createApp({ db, verifier }: AppDependencies) {
   // Liveness. Answers "is this process running", nothing more. Deliberately
   // does not query Postgres: a liveness probe that depends on the database
   // turns a database blip into a restart loop.
-  app.get('/healthz', (c) => c.json({ status: 'ok' }));
+  app.get('/livez', (c) => c.json({ status: 'ok' }));
+  app.get('/livez/', (c) => c.json({ status: 'ok' }));
 
   // Readiness. Answers "can this instance actually serve traffic", which does
   // require the database.
-  app.get('/readyz', async (c) => {
+  const readiness = async (c: Context) => {
     try {
       await db.query('select 1');
       return c.json({ status: 'ok', database: 'ok' });
@@ -70,7 +81,9 @@ export function createApp({ db, verifier }: AppDependencies) {
       // driver messages leak hostnames.
       return c.json({ status: 'degraded', database: 'unreachable' }, 503);
     }
-  });
+  };
+  app.get('/readyz', readiness);
+  app.get('/readyz/', readiness);
 
   app.post('/captures', async (c) => {
     const body: unknown = await c.req.json().catch(() => null);

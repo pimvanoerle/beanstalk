@@ -1,0 +1,20 @@
+# Uploaded to Cloud Build as the build context. Keep it to source.
+#
+# Without this gcloud falls back to .gitignore, which mostly does the right
+# thing — but being explicit avoids shipping a local .env into a build context,
+# which is not somewhere a live credential should ever go.
+
+.git/
+node_modules/
+**/node_modules/
+**/dist/
+**/*.tsbuildinfo
+coverage/
+
+.env
+.env.*
+!.env.example
+
+docs/
+.github/
+**/*.test.ts

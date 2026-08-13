@@ -1,0 +1,31 @@
+# Build the API image.
+#
+#   gcloud builds submit --config cloudbuild.yaml \
+#     --substitutions=_TAG=$(git rev-parse --short HEAD)
+#
+# The Dockerfile lives in apps/api but the build context is the repo root,
+# because the image needs the workspace manifests and the sibling packages.
+# That combination rules out `gcloud builds submit --tag`, which always runs
+# `docker build .` against a root Dockerfile.
+
+# $PROJECT_ID is a built-in substitution and only expands in steps and images.
+# Referencing it from another substitution's default leaves it literal, which
+# fails as an unparseable image reference.
+substitutions:
+  _TAG: latest
+
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - --file=apps/api/Dockerfile
+      - --tag=europe-west2-docker.pkg.dev/$PROJECT_ID/beanstalk/api:${_TAG}
+      - --tag=europe-west2-docker.pkg.dev/$PROJECT_ID/beanstalk/api:latest
+      - .
+
+images:
+  - europe-west2-docker.pkg.dev/$PROJECT_ID/beanstalk/api:${_TAG}
+  - europe-west2-docker.pkg.dev/$PROJECT_ID/beanstalk/api:latest
+
+options:
+  logging: CLOUD_LOGGING_ONLY

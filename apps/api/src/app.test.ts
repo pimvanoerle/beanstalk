@@ -46,7 +46,7 @@ describe('health endpoints', () => {
     };
     const app = createApp({ db: exploding, verifier: asUser('user-1') });
 
-    expect((await app.request('/healthz')).status).toBe(200);
+    expect((await app.request('/livez')).status).toBe(200);
   });
 
   test('readiness needs no token and reports the database reachable', async () => {
@@ -72,13 +72,22 @@ describe('health endpoints', () => {
     expect((await app.request('/readyz')).status).toBe(503);
   });
 
+  test('a trailing slash does not turn a public path into a 401', async () => {
+    // Health checkers are not fussy about trailing slashes; an exact-string
+    // allow-list is. Found by probing the deployed service.
+    const app = createApp({ db, verifier: asUser('user-1') });
+
+    expect((await app.request('/livez/')).status).toBe(200);
+    expect((await app.request('/readyz/')).status).toBe(200);
+  });
+
   test('every other route still requires a token', async () => {
     // The allow-list is exactly the two health paths. Anything else, including
     // a route nobody has written yet, is denied by default.
     const app = createApp({ db, verifier: asUser('user-1') });
 
     expect((await app.request('/captures')).status).toBe(401);
-    expect((await app.request('/healthz/../captures')).status).not.toBe(200);
+    expect((await app.request('/livez/../captures')).status).not.toBe(200);
   });
 });
 
