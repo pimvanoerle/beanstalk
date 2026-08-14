@@ -232,6 +232,19 @@ Cloud Run and Firebase Hosting from CI.
   read access to one secret, rather than the default compute account and its
   project-level roles.
 
+### Signed uploads
+
+- **Signing needs `serviceAccountTokenCreator` on the account itself.** A Cloud
+  Run service account has no private key, so the Storage library signs v4 URLs
+  through the IAM `signBlob` API rather than locally. Without that self-binding
+  every signing attempt fails — at request time, not at startup, and with an
+  error mentioning neither IAM nor the missing role.
+- **The bucket needs its own CORS policy.** A signed URL grants permission to
+  write the object; it says nothing about which origins may make the request.
+  Browser `PUT`s fail on preflight until the bucket allows the hosting origin.
+  Config lives in `infra/photos-cors.json` so it is reproducible rather than
+  console state.
+
 ## Open questions
 
 - Rating granularity — five stars, or half-stars?

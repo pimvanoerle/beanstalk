@@ -1,0 +1,21 @@
+[
+  {
+    "_comment": [
+      "The PWA PUTs photo bytes straight to Cloud Storage from the browser, so",
+      "the bucket itself must permit the cross-origin request — the signed URL",
+      "grants permission to write, not permission to be called from a page.",
+      "Applied with:",
+      "  gcloud storage buckets update gs://beanstalk-505411-photos \\",
+      "    --cors-file=infra/photos-cors.json",
+      "Add the custom domain here too if hosting ever moves off web.app."
+    ],
+    "origin": [
+      "https://beanstalk-505411.web.app",
+      "https://beanstalk-505411.firebaseapp.com",
+      "http://localhost:5173"
+    ],
+    "method": ["GET", "PUT"],
+    "responseHeader": ["Content-Type"],
+    "maxAgeSeconds": 3600
+  }
+]
