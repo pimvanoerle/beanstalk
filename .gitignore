@@ -11,6 +11,11 @@ coverage/
 *-service-account*.json
 gha-creds-*.json
 
+# Session scratch: where things stand right now, for picking work back up.
+# Deliberately not tracked. Anything durable — architecture, rationale, the
+# gotchas that cost an afternoon — belongs in docs/ or infra/ and gets committed.
+notes/
+
 .DS_Store
 .vscode/
 .idea/
