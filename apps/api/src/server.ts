@@ -5,10 +5,16 @@ import pg from 'pg';
 import { createApp } from './app.js';
 import type { TokenVerifier } from './auth.js';
 import { firebaseVerifier } from './firebase.js';
+import { cloudStoragePhotos, type PhotoStore } from './photos.js';
 
 /** Rejects every token. Used only when Firebase is not configured. */
 const denyAll: TokenVerifier = {
   verify: async () => null,
+};
+
+/** Signs nothing. Used only when the photo bucket is not configured. */
+const noBucket: PhotoStore = {
+  signUpload: () => Promise.reject(new Error('PHOTO_BUCKET is not set')),
 };
 
 /**
@@ -30,6 +36,19 @@ function buildVerifier(): TokenVerifier {
   return firebaseVerifier({ projectId });
 }
 
+/**
+ * Same bargain as the verifier: an unconfigured deployment serves everything
+ * else and answers /uploads with a 503, rather than refusing to start.
+ */
+function buildPhotos(): PhotoStore {
+  const bucket = process.env['PHOTO_BUCKET'];
+  if (bucket === undefined || bucket === '') {
+    console.warn('PHOTO_BUCKET is not set: /uploads will return 503');
+    return noBucket;
+  }
+  return cloudStoragePhotos({ bucket });
+}
+
 function required(name: string): string {
   const value = process.env[name];
   if (value === undefined || value === '') {
@@ -48,7 +67,11 @@ const pool = new pg.Pool({
   idleTimeoutMillis: 30_000,
 });
 
-const app = createApp({ db: pgDatabase(pool), verifier: buildVerifier() });
+const app = createApp({
+  db: pgDatabase(pool),
+  verifier: buildVerifier(),
+  photos: buildPhotos(),
+});
 
 // Cloud Run supplies PORT and expects the container to listen on it.
 const port = Number(process.env['PORT'] ?? '8080');

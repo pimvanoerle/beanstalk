@@ -4,6 +4,7 @@ import { beforeAll, beforeEach, describe, expect, test } from 'vitest';
 
 import { createApp } from './app.js';
 import type { TokenVerifier } from './auth.js';
+import type { PhotoStore } from './photos.js';
 
 let db: PGlite;
 
@@ -13,6 +14,15 @@ function asUser(uid: string): TokenVerifier {
 }
 
 const AUTH = { Authorization: 'Bearer any' };
+
+/**
+ * Signs by concatenation, so a test can assert on the object name the app
+ * derived. The real signer is Cloud Storage's, and there is nothing in it worth
+ * reimplementing here — what matters is which object we ask it to sign.
+ */
+const photos: PhotoStore = {
+  signUpload: async (object) => `https://signed.example/${object}`,
+};
 
 beforeAll(async () => {
   db = new PGlite();
@@ -84,9 +94,10 @@ describe('health endpoints', () => {
   test('every other route still requires a token', async () => {
     // The allow-list is exactly the two health paths. Anything else, including
     // a route nobody has written yet, is denied by default.
-    const app = createApp({ db, verifier: asUser('user-1') });
+    const app = createApp({ db, verifier: asUser('user-1'), photos });
 
     expect((await app.request('/captures')).status).toBe(401);
+    expect((await app.request('/uploads', { method: 'POST' })).status).toBe(401);
     expect((await app.request('/livez/../captures')).status).not.toBe(200);
   });
 });
@@ -154,6 +165,77 @@ describe('POST /captures', () => {
     const second = await (await post(app, body)).json();
 
     expect(second).toEqual(first);
+  });
+});
+
+describe('POST /uploads', () => {
+  test('issues a signed URL for an object owned by the authenticated user', async () => {
+    const app = createApp({ db, verifier: asUser('user-1'), photos });
+
+    const response = await app.request('/uploads', {
+      method: 'POST',
+      headers: { ...AUTH, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        clientUuid: '55555555-5555-4555-8555-555555555555',
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      object: 'photos/user-1/55555555-5555-4555-8555-555555555555',
+      url: 'https://signed.example/photos/user-1/55555555-5555-4555-8555-555555555555',
+    });
+  });
+
+  test('will not sign an object outside the caller\'s own prefix', async () => {
+    // The whole point of deriving the path server-side. A client uuid
+    // interpolated unchecked lets a caller climb out of their prefix and get a
+    // write URL for someone else's photo.
+    const signed: string[] = [];
+    const app = createApp({
+      db,
+      verifier: asUser('user-1'),
+      photos: {
+        signUpload: async (object) => {
+          signed.push(object);
+          return 'https://signed.example/anything';
+        },
+      },
+    });
+
+    const response = await app.request('/uploads', {
+      method: 'POST',
+      headers: { ...AUTH, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clientUuid: '../user-2/stolen' }),
+    });
+
+    expect(response.status).toBe(400);
+    expect(signed).toEqual([]);
+  });
+
+  test('reports 503 when signing is unavailable', async () => {
+    // Signing is the one Storage call that fails when the service account
+    // cannot call IAM signBlob, and it fails at request time rather than at
+    // startup. A 500 would blame the caller's request for our configuration.
+    const app = createApp({
+      db,
+      verifier: asUser('user-1'),
+      photos: {
+        signUpload: async () => {
+          throw new Error('Permission iam.serviceAccounts.signBlob denied');
+        },
+      },
+    });
+
+    const response = await app.request('/uploads', {
+      method: 'POST',
+      headers: { ...AUTH, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        clientUuid: '55555555-5555-4555-8555-555555555555',
+      }),
+    });
+
+    expect(response.status).toBe(503);
   });
 });
 

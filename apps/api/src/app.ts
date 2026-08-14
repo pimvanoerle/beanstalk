@@ -2,14 +2,28 @@ import { createCapture, listCaptures, type Database } from '@beanstalk/db';
 import { Hono, type Context } from 'hono';
 
 import { requireUser, type TokenVerifier } from './auth.js';
+import type { PhotoStore } from './photos.js';
 
 export interface AppDependencies {
   readonly db: Database;
   readonly verifier: TokenVerifier;
+  readonly photos: PhotoStore;
 }
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** The client uuid from a request body, or null if it is not usable. */
+function parseClientUuid(body: unknown): string | null {
+  if (typeof body !== 'object' || body === null) {
+    return null;
+  }
+  const { clientUuid } = body as Record<string, unknown>;
+  if (typeof clientUuid !== 'string' || !UUID_PATTERN.test(clientUuid)) {
+    return null;
+  }
+  return clientUuid;
+}
 
 interface CaptureRequest {
   readonly clientUuid: string;
@@ -23,14 +37,12 @@ interface CaptureRequest {
  * reports the caller's mistake as ours.
  */
 function parseCaptureRequest(body: unknown): CaptureRequest | null {
-  if (typeof body !== 'object' || body === null) {
+  const clientUuid = parseClientUuid(body);
+  if (clientUuid === null) {
     return null;
   }
 
-  const { clientUuid, photoObject } = body as Record<string, unknown>;
-  if (typeof clientUuid !== 'string' || !UUID_PATTERN.test(clientUuid)) {
-    return null;
-  }
+  const { photoObject } = body as Record<string, unknown>;
   if (typeof photoObject !== 'string' || photoObject === '') {
     return null;
   }
@@ -54,7 +66,7 @@ function normalisePath(path: string): string {
   return path.length > 1 && path.endsWith('/') ? path.slice(0, -1) : path;
 }
 
-export function createApp({ db, verifier }: AppDependencies) {
+export function createApp({ db, verifier, photos }: AppDependencies) {
   const app = new Hono<{ Variables: { uid: string } }>();
 
   app.use('*', async (c, next) => {
@@ -84,6 +96,28 @@ export function createApp({ db, verifier }: AppDependencies) {
   };
   app.get('/readyz', readiness);
   app.get('/readyz/', readiness);
+
+  app.post('/uploads', async (c) => {
+    const body: unknown = await c.req.json().catch(() => null);
+    const clientUuid = parseClientUuid(body);
+    if (clientUuid === null) {
+      return c.json({ error: 'clientUuid (uuid) is required' }, 400);
+    }
+
+    // Both segments are trustworthy: the uid comes from the verified token, and
+    // clientUuid has been checked against the uuid pattern, which admits no
+    // slashes or dots. Interpolating an unvalidated value here would hand the
+    // caller a write URL for any object in the bucket.
+    const object = `photos/${c.get('uid')}/${clientUuid}`;
+    try {
+      return c.json({ object, url: await photos.signUpload(object) });
+    } catch (error) {
+      // Logged, not returned: signing errors name the service account and the
+      // bucket, and this response goes to the client.
+      console.error('signing an upload URL failed', error);
+      return c.json({ error: 'uploads are unavailable' }, 503);
+    }
+  });
 
   app.post('/captures', async (c) => {
     const body: unknown = await c.req.json().catch(() => null);
