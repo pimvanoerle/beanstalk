@@ -133,6 +133,28 @@ The repository is public, so nothing secret may reach the client bundle.
 - Every query is scoped by the `uid` from a verified Firebase ID token. The client never supplies
   its own user ID.
 
+### Service account grants
+
+The API runs as `beanstalk-api@`, which holds **no project-level roles**. Each grant below names a
+single resource, and all of them live in `infra/iam.sh` — idempotent, and the answer to "what does
+this account actually have" without opening the console.
+
+| Grant | On | Why |
+|---|---|---|
+| `iam.serviceAccountTokenCreator` | itself | Signing v4 URLs via IAM `signBlob`, since Cloud Run has no private key |
+| `secretmanager.secretAccessor` | `beanstalk-database-url` | The Neon connection string, not Secret Manager at large |
+| `storage.objectCreator` | photo bucket | Write. Not `objectAdmin`: a capture is immutable once written |
+| `beanstalkPhotoReader` (custom) | photo bucket | Read, for Phase 4 extraction and Phase 5 signed read URLs |
+
+> **Why a custom role for reading.** `roles/storage.objectViewer` bundles eight permissions, of
+> which exactly one is used. The extra that matters is `storage.objects.list`: the worker reads one
+> object at a time at a path it already holds from the capture row, and never enumerates. Granting
+> list would turn "read what you can name" into "walk every user's photos". The definition is one
+> permission in `infra/photo-reader-role.yaml`.
+
+Signing and reading are separate concerns that both need attending to: a signed read URL is only
+usable if the account that signed it still holds the read permission when the URL is used.
+
 ### The roaster page is untrusted input
 
 A fetched page containing instruction-shaped text must not be able to steer extraction. Page
@@ -228,9 +250,9 @@ Cloud Run and Firebase Hosting from CI.
   always runs `docker build .` against a root Dockerfile — hence
   `cloudbuild.yaml`. Note `$PROJECT_ID` only expands in `steps` and `images`,
   not inside another substitution's default.
-- **The service runs as a dedicated account** holding exactly one permission,
-  read access to one secret, rather than the default compute account and its
-  project-level roles.
+- **The service runs as a dedicated account** holding no project-level roles at
+  all, rather than the default compute account. Every grant names one resource;
+  they are listed under "Service account grants" in the Security section.
 
 ### Signed uploads
 
