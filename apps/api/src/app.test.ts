@@ -177,6 +177,7 @@ describe('POST /uploads', () => {
       headers: { ...AUTH, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         clientUuid: '55555555-5555-4555-8555-555555555555',
+        contentType: 'image/jpeg',
       }),
     });
 
@@ -184,6 +185,7 @@ describe('POST /uploads', () => {
     expect(await response.json()).toEqual({
       object: 'photos/user-1/55555555-5555-4555-8555-555555555555',
       url: 'https://signed.example/photos/user-1/55555555-5555-4555-8555-555555555555',
+      contentType: 'image/jpeg',
     });
   });
 
@@ -206,7 +208,104 @@ describe('POST /uploads', () => {
     const response = await app.request('/uploads', {
       method: 'POST',
       headers: { ...AUTH, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ clientUuid: '../user-2/stolen' }),
+      // Content type is valid, so the 400 below can only be the uuid.
+      body: JSON.stringify({
+        clientUuid: '../user-2/stolen',
+        contentType: 'image/jpeg',
+      }),
+    });
+
+    expect(response.status).toBe(400);
+    expect(signed).toEqual([]);
+  });
+
+  test('signs for the declared content type and tells the client which it used', async () => {
+    // The signature covers this exact string, so a client that guesses gets a
+    // signature mismatch rather than a helpful error. Echoing it back removes
+    // the guess.
+    const signed: { object: string; contentType: string }[] = [];
+    const app = createApp({
+      db,
+      verifier: asUser('user-1'),
+      photos: {
+        signUpload: async (object, contentType) => {
+          signed.push({ object, contentType });
+          return 'https://signed.example/pinned';
+        },
+      },
+    });
+
+    const response = await app.request('/uploads', {
+      method: 'POST',
+      headers: { ...AUTH, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        clientUuid: '55555555-5555-4555-8555-555555555555',
+        contentType: 'image/webp',
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(signed).toEqual([
+      {
+        object: 'photos/user-1/55555555-5555-4555-8555-555555555555',
+        contentType: 'image/webp',
+      },
+    ]);
+    expect(await response.json()).toMatchObject({ contentType: 'image/webp' });
+  });
+
+  test('will not sign a content type outside the allowlist', async () => {
+    // A signed URL authorises a write of whatever the holder sends. Without a
+    // pinned content type the upload path doubles as general-purpose storage
+    // for anything at all.
+    const signed: string[] = [];
+    const app = createApp({
+      db,
+      verifier: asUser('user-1'),
+      photos: {
+        signUpload: async (object) => {
+          signed.push(object);
+          return 'https://signed.example/anything';
+        },
+      },
+    });
+
+    const response = await app.request('/uploads', {
+      method: 'POST',
+      headers: { ...AUTH, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        clientUuid: '55555555-5555-4555-8555-555555555555',
+        contentType: 'application/zip',
+      }),
+    });
+
+    expect(response.status).toBe(400);
+    expect(signed).toEqual([]);
+  });
+
+  test('will not sign without a declared content type', async () => {
+    // There is deliberately no default. Defaulting to image/jpeg would sign a
+    // jpeg-only URL for a client that never said what it was sending, and the
+    // mismatch would surface as an opaque signature failure at PUT time rather
+    // than as this 400.
+    const signed: string[] = [];
+    const app = createApp({
+      db,
+      verifier: asUser('user-1'),
+      photos: {
+        signUpload: async (object) => {
+          signed.push(object);
+          return 'https://signed.example/anything';
+        },
+      },
+    });
+
+    const response = await app.request('/uploads', {
+      method: 'POST',
+      headers: { ...AUTH, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        clientUuid: '55555555-5555-4555-8555-555555555555',
+      }),
     });
 
     expect(response.status).toBe(400);
@@ -232,6 +331,7 @@ describe('POST /uploads', () => {
       headers: { ...AUTH, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         clientUuid: '55555555-5555-4555-8555-555555555555',
+        contentType: 'image/jpeg',
       }),
     });
 

@@ -243,7 +243,31 @@ Cloud Run and Firebase Hosting from CI.
   write the object; it says nothing about which origins may make the request.
   Browser `PUT`s fail on preflight until the bucket allows the hosting origin.
   Config lives in `infra/photos-cors.json` so it is reproducible rather than
-  console state.
+  console state. `Content-Type` is listed there deliberately — it is what lets
+  the browser send that header on the `PUT`, which the pin below requires.
+- **Uploads are pinned to one declared image type.** A v4 signature covers one
+  exact `Content-Type` string, so `image/*` cannot be signed for. "Images only"
+  is therefore an allowlist — `image/jpeg`, `image/png`, `image/webp` — checked
+  in `POST /uploads`, with the URL then signed for the single type the client
+  declared and that type echoed back in the response so the client does not have
+  to guess which header will match.
+
+  > The three are the intersection of what a browser canvas emits from the
+  > downscale step and what the extraction model accepts. HEIC is absent for a
+  > reason worth remembering: phones shoot it, but the canvas re-encode means it
+  > never reaches the uploader.
+
+  There is deliberately no default. Defaulting would sign a jpeg-only URL for a
+  client that never said what it was sending, turning a caller mistake into an
+  opaque signature failure at `PUT` time instead of a 400 at request time.
+
+  **What this does not do:** `Content-Type` is a client declaration, not a
+  property of the bytes. It stops the upload path being general-purpose storage
+  for archives and video, but arbitrary bytes labelled `image/png` still get
+  through, and a signed URL still carries no size limit. Anything that depends
+  on the bytes really being an image — the extraction worker above all — must
+  check the magic bytes itself, and photos must never be served back as active
+  content from a trusted origin.
 
 ## Open questions
 
