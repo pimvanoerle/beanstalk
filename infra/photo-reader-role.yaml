@@ -1,0 +1,21 @@
+# A custom role rather than roles/storage.objectViewer.
+#
+# The worker reads one object at a time, at a path it already holds from the
+# capture row. It never enumerates the bucket. objectViewer would additionally
+# grant storage.objects.list — the ability to walk every user's photos — along
+# with five other permissions nothing here uses.
+#
+# Created and updated with:
+#   gcloud iam roles create beanstalkPhotoReader --project=beanstalk-505411 \
+#     --file=infra/photo-reader-role.yaml
+#   gcloud iam roles update beanstalkPhotoReader --project=beanstalk-505411 \
+#     --file=infra/photo-reader-role.yaml
+#
+# Bound to the service account in infra/photos-iam.sh.
+title: Beanstalk Photo Reader
+description: >-
+  Read a photo object by name. Enough for the extraction worker and for signing
+  read URLs; not enough to list the bucket.
+stage: GA
+includedPermissions:
+  - storage.objects.get
