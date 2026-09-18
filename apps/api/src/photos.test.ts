@@ -45,6 +45,18 @@ describe('cloudStoragePhotos', () => {
     expect(url.searchParams.get('X-Goog-Signature')).toBeTruthy();
   });
 
+  test('binds the content type into the signature', async () => {
+    // Listing content-type among the signed headers is what makes the pin real:
+    // Cloud Storage recomputes the signature from the header the client
+    // actually sends, so a URL signed for a PNG cannot be used to upload
+    // anything else. A content type left out of this list would be advisory.
+    const photos = cloudStoragePhotos({ bucket: BUCKET, storage });
+
+    const url = new URL(await photos.signUpload(OBJECT, 'image/png'));
+
+    expect(url.searchParams.get('X-Goog-SignedHeaders')).toContain('content-type');
+  });
+
   test('the URL expires', async () => {
     // An upload URL is a bearer credential for writing to the bucket. One that
     // never expired would be a permanent write grant to anyone it leaked to.

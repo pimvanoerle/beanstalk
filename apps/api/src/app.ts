@@ -2,7 +2,7 @@ import { createCapture, listCaptures, type Database } from '@beanstalk/db';
 import { Hono, type Context } from 'hono';
 
 import { requireUser, type TokenVerifier } from './auth.js';
-import type { PhotoStore } from './photos.js';
+import { UPLOAD_CONTENT_TYPES, type PhotoStore } from './photos.js';
 
 export interface AppDependencies {
   readonly db: Database;
@@ -23,6 +23,23 @@ function parseClientUuid(body: unknown): string | null {
     return null;
   }
   return clientUuid;
+}
+
+/**
+ * The declared content type from a request body, or null if it is not one we
+ * will sign for. Declared rather than inferred: the signature has to be
+ * computed before any bytes exist, so the client's word is all there is at this
+ * point.
+ */
+function parseContentType(body: unknown): string | null {
+  if (typeof body !== 'object' || body === null) {
+    return null;
+  }
+  const { contentType } = body as Record<string, unknown>;
+  if (typeof contentType !== 'string' || !UPLOAD_CONTENT_TYPES.has(contentType)) {
+    return null;
+  }
+  return contentType;
 }
 
 interface CaptureRequest {
@@ -104,13 +121,22 @@ export function createApp({ db, verifier, photos }: AppDependencies) {
       return c.json({ error: 'clientUuid (uuid) is required' }, 400);
     }
 
+    const contentType = parseContentType(body);
+    if (contentType === null) {
+      return c.json(
+        { error: `contentType must be one of ${[...UPLOAD_CONTENT_TYPES].join(', ')}` },
+        400,
+      );
+    }
+
     // Both segments are trustworthy: the uid comes from the verified token, and
     // clientUuid has been checked against the uuid pattern, which admits no
     // slashes or dots. Interpolating an unvalidated value here would hand the
     // caller a write URL for any object in the bucket.
     const object = `photos/${c.get('uid')}/${clientUuid}`;
     try {
-      return c.json({ object, url: await photos.signUpload(object) });
+      const url = await photos.signUpload(object, contentType);
+      return c.json({ object, url, contentType });
     } catch (error) {
       // Logged, not returned: signing errors name the service account and the
       // bucket, and this response goes to the client.
