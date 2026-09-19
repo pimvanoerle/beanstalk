@@ -253,6 +253,15 @@ Cloud Run and Firebase Hosting from CI.
 - **The service runs as a dedicated account** holding no project-level roles at
   all, rather than the default compute account. Every grant names one resource;
   they are listed under "Service account grants" in the Security section.
+- **Every `gcloud` command here needs `--project`.** Beanstalk is unlikely to be
+  the active project on a machine that works on anything else. Observed twice
+  while deploying `079a83b`: `gcloud run services describe` reported "cannot
+  find service" and `gcloud iam service-accounts` reported the account "does not
+  exist" — both of which read as "this is broken" rather than "you are pointed
+  somewhere else". Those at least fail loudly. `gcloud builds submit` is the one
+  to watch, because `$PROJECT_ID` resolves from the build's project rather than
+  from `cloudbuild.yaml`, so an omitted `--project` would push the image to
+  whichever registry the active project owns.
 
 ### Signed uploads
 
